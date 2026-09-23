@@ -1,0 +1,7 @@
+# 源码与文本一律以 LF 存进仓库，避免 Windows / Linux 之间来回检出时
+# 每个文件都显示成已修改，也让 CI 上的 diff 保持干净。
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.wasm binary

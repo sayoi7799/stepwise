@@ -1,0 +1,26 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MoonBit
+        uses: hustcer/setup-moonbit@v1
+
+      - name: Check
+        run: moon check
+
+      - name: Format check
+        run: moon fmt --check
+
+      - name: Test
+        run: moon test
+
+      - name: Run the pipeline on the sample
+        run: moon run cmd/main -- analyze samples/sample.txt --level 2

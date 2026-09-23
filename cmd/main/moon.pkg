@@ -1,0 +1,10 @@
+import {
+  "moonbitlang/core/env",
+  "moonbitlang/x/fs",
+  "stepwise/ai",
+  "stepwise/export",
+  "stepwise/learner",
+  "stepwise/lexicon",
+}
+
+pkgtype(kind: "executable")

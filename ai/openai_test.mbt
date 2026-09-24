@@ -15,7 +15,12 @@ test "接口地址：默认指向 DeepSeek，末尾多写斜杠也能容忍" {
 ///|
 test "报文组装：两条消息，温度从千分数换算成小数" {
   let request = @ai.explain_word_prompt(
-    "词", "cí", 3, "这个中文词很好。", 2, false,
+    "词",
+    "cí",
+    3,
+    "这个中文词很好。",
+    2,
+    [],
   )
   let text = @ai.chat_request_json("deepseek-chat", request).stringify()
   assert_eq(text.contains("\"model\":\"deepseek-chat\""), true)

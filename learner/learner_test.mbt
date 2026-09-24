@@ -80,6 +80,20 @@ test "空文本的覆盖率按 100% 处理" {
 }
 
 ///|
+test "被解释的词可以排除在生词之外" {
+  let lex = @lexicon.Lexicon::from_tsv(LEARNER_LEXICON)
+  let learner = @learner.Learner::new(1)
+  let tokens = @segment.segment("我研究中文", lex)
+  // 研究是 3 级词，对 1 级学习者算生词
+  assert_eq(@learner.analyze(tokens, learner).unknown_types_count(), 1)
+  // 但如果这一句就是在解释「研究」，它本身不该算超纲
+  let ignored = @learner.analyze_ignoring(tokens, learner, ["研究"])
+  assert_eq(ignored.unknown_types_count(), 0)
+  assert_eq(ignored.coverage_permille(), 1000)
+  assert_eq(ignored.tokens(), 3)
+}
+
+///|
 test "句子评分：0 个生词 1 分，1-3 个 3 分，4 个以上 2 分" {
   assert_eq(@learner.sentence_score(0), 1)
   assert_eq(@learner.sentence_score(1), 3)

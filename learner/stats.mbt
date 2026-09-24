@@ -25,6 +25,24 @@ fn is_counted(token : @segment.Token) -> Bool {
 ///|
 /// 统计一段切分结果对某个学习者的难度。
 pub fn analyze(tokens : Array[@segment.Token], learner : Learner) -> TextStats {
+  analyze_ignoring(tokens, learner, [])
+}
+
+///|
+/// 和 `analyze` 一样，但把 `ignore` 里的词一律当作已知。
+///
+/// 最典型的用场是解释的场景：解释里必然出现被解释的那个词本身。
+/// 它本来就是学习者还不认识的词，可在这里它是「正在学的东西」，
+/// 不该反过来把这段解释判成偏难。
+pub fn analyze_ignoring(
+  tokens : Array[@segment.Token],
+  learner : Learner,
+  ignore : Array[String],
+) -> TextStats {
+  let excluded : @hashmap.HashMap[String, Bool] = @hashmap.HashMap([])
+  for word in ignore {
+    excluded.set(word, true)
+  }
   let seen : @hashmap.HashMap[String, Bool] = @hashmap.HashMap([])
   let unknown_types : Array[String] = []
   let mut total = 0
@@ -33,7 +51,7 @@ pub fn analyze(tokens : Array[@segment.Token], learner : Learner) -> TextStats {
   for token in tokens {
     if is_counted(token) {
       total = total + 1
-      if learner.knows_token(token) {
+      if excluded.contains(token.text) || learner.knows_token(token) {
         known = known + 1
       } else {
         unknown_tokens = unknown_tokens + 1

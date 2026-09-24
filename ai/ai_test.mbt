@@ -19,7 +19,12 @@ const AI_LEXICON : String =
 ///|
 test "提示词带上学习者水平和原句" {
   let request = @ai.explain_word_prompt(
-    "词", "cí", 3, "这个中文词很好。", 2, false,
+    "词",
+    "cí",
+    3,
+    "这个中文词很好。",
+    2,
+    [],
   )
   assert_eq(request.user.contains("HSK 2"), true)
   assert_eq(request.user.contains("这个中文词很好。"), true)
@@ -28,17 +33,29 @@ test "提示词带上学习者水平和原句" {
 }
 
 ///|
-test "重试时提示词会加严" {
+test "重试时把上一轮的超纲词点名列出" {
   let normal = @ai.explain_word_prompt(
-    "词", "cí", 3, "这个中文词很好。", 2, false,
+    "词",
+    "cí",
+    3,
+    "这个中文词很好。",
+    2,
+    [],
   )
   let strict = @ai.explain_word_prompt(
-    "词", "cí", 3, "这个中文词很好。", 2, true,
+    "词",
+    "cí",
+    3,
+    "这个中文词很好。",
+    2,
+    ["好玩", "让人"],
   )
   assert_eq(
     strict.user.contains("上一次的解释对学习者太难了"),
     true,
   )
+  // 关键：不是笼统说「太难」，而是把具体该换掉的词列出来
+  assert_eq(strict.user.contains("好玩、让人"), true)
   assert_eq(strict.user.length() > normal.user.length(), true)
 }
 
@@ -51,6 +68,20 @@ test "审计：超纲词太多的解释不通过" {
   let easy = @ai.audit("这个词的意思是很喜欢看书。", lex, learner)
   assert_eq(@ai.acceptable_explanation(easy), true)
   assert_eq(easy.coverage_permille(), 1000)
+}
+
+///|
+test "审计解释时，被解释的词本身不算超纲" {
+  let lex = @lexicon.Lexicon::from_tsv(AI_LEXICON)
+  let learner = @learner.Learner::new(2)
+  // 深奥是 7 级词，对 2 级学习者算生词
+  let naive = @ai.audit("深奥的意思是不好懂。", lex, learner)
+  assert_eq(naive.unknown_types_count() > 0, true)
+  // 但如果正在解释的就是「深奥」，它出现在句子里是必然的
+  let fair = @ai.audit_explanation(
+    "深奥的意思是不好懂。", lex, learner, "深奥",
+  )
+  assert_eq(fair.unknown_types_count() < naive.unknown_types_count(), true)
 }
 
 ///|
@@ -86,7 +117,7 @@ async test "质量闸门：一直不达标时返回最后一次结果，不卡�
 ///|
 async test "脚本用尽时报 BadResponse" {
   let client = @ai.ScriptedClient::new([])
-  let request = @ai.explain_word_prompt("词", "cí", 3, "句子", 1, false)
+  let request = @ai.explain_word_prompt("词", "cí", 3, "句子", 1, [])
   let result : Result[@ai.LlmResponse, @ai.LlmError] = Ok(
     client.complete(request),
   ) catch {

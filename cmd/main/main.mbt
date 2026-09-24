@@ -78,10 +78,49 @@ async fn run_explain(args : Array[String]) -> Unit {
   let lexicon = load_lexicon(args)
   let learner = learner_from(args)
   let client = @ai.OpenAiCompatClient::new(key)
-  println("模型：\{client.model()}")
-  println("地址：\{client.endpoint()}")
-  println("学习者水平：HSK \{learner.level()}\n")
-  let answer = @ai.explain_with_audit(
+  // 从这里开始统一用 write_out：流式生成走的是 async 的 stdout，
+  // 而核心的 println 自己有缓冲，混用会把打印顺序打乱。
+  write_out("模型：\{client.model()}\n")
+  write_out("地址：\{client.endpoint()}\n")
+  write_out("学习者水平：HSK \{learner.level()}\n")
+  write_out("可读性门槛：覆盖率 95%\n\n")
+
+  // 流式模式：先让第一次尝试边生成边显示，再给出审计结论。
+  // 需要重试的场景请不加 --stream，那时每次尝试的覆盖率都会列出来。
+  if has_flag(args, "--stream") {
+    let request = @ai.explain_word_prompt(
+      word,
+      string_flag(args, "--pinyin", ""),
+      int_flag(args, "--word-level", 0),
+      sentence,
+      learner.level(),
+      [],
+    )
+    write_out("—— 流式生成中 ——\n")
+    let response = client.complete_stream(request, delta => write_out(delta)) catch {
+      error => {
+        write_out("\n调用失败：\{error.to_string()}\n")
+        return
+      }
+    }
+    write_out("\n")
+    let stats = @ai.audit_explanation(response.text, lexicon, learner, word)
+    write_out(
+      "可读性审计：覆盖率 \{stats.coverage_percent_text()}%，生词 \{stats.unknown_types_count()} 个",
+    )
+    write_out("\n")
+    if @ai.acceptable_explanation(stats) {
+      write_out("结论：这段解释对当前水平是够浅的。\n")
+    } else {
+      write_out(
+        "结论：偏难。去掉 --stream 再跑一次，会自动带着更严的约束重试，\n",
+      )
+      write_out("      并把每一轮的覆盖率列出来。\n")
+    }
+    return
+  }
+
+  let attempts = @ai.explain_traced(
     client,
     word,
     string_flag(args, "--pinyin", ""),
@@ -92,21 +131,39 @@ async fn run_explain(args : Array[String]) -> Unit {
     int_flag(args, "--attempts", 3),
   ) catch {
     error => {
-      println("调用失败：\{error.to_string()}")
+      write_out("调用失败：\{error.to_string()}\n")
       return
     }
   }
-  println(answer)
-  let stats = @ai.audit(answer, lexicon, learner)
-  println("")
-  println(
-    "可读性审计：覆盖率 \{stats.coverage_percent_text()}%，生词 \{stats.unknown_types_count()} 个",
+  // 把每次尝试摊开：第几次、覆盖率多少、过没过门槛
+  for attempt in attempts {
+    let verdict = if attempt.acceptable() {
+      "通过"
+    } else {
+      "偏难，加严约束重试"
+    }
+    write_out(
+      "第 \{attempt.round} 次尝试：覆盖率 \{attempt.coverage_text()}% → \{verdict}\n",
+    )
+  }
+  let answer = if attempts.length() == 0 {
+    ""
+  } else {
+    attempts[attempts.length() - 1].text
+  }
+  write_out("\n—— 最终交付给学习者的解释 ——\n")
+  write_out(answer)
+  write_out("\n")
+  let stats = @ai.audit_explanation(answer, lexicon, learner, word)
+  write_out("\n")
+  write_out(
+    "可读性审计：覆盖率 \{stats.coverage_percent_text()}%，生词 \{stats.unknown_types_count()} 个\n",
   )
   if @ai.acceptable_explanation(stats) {
-    println("结论：这段解释对当前水平是够浅的。")
+    write_out("结论：这段解释对当前水平是够浅的。\n")
   } else {
-    println(
-      "结论：这段解释偏难，重试后仍不达标，建议换个说法或降低等级。",
+    write_out(
+      "结论：这段解释偏难，重试后仍不达标，建议换个说法或降低等级。\n",
     )
   }
 }
@@ -124,6 +181,28 @@ fn api_key() -> String? {
         Some(trimmed)
       }
     }
+  }
+}
+
+///|
+/// 命令行里有没有这个开关。
+fn has_flag(args : Array[String], name : String) -> Bool {
+  for arg in args {
+    if arg == name {
+      return true
+    }
+  }
+  false
+}
+
+///|
+/// 往 stdout 写一段文本（不额外加换行）。
+///
+/// 统一走 async 的 stdio：流式生成时 `println` 和 `@stdio.stdout`
+/// 是两套缓冲，混着用会把输出顺序打乱。
+async fn write_out(text : String) -> Unit noraise {
+  @stdio.stdout.write(text) catch {
+    _ => ()
   }
 }
 
@@ -245,7 +324,7 @@ fn run_prompt(args : Array[String]) -> Unit {
             level,
             sentence,
             int_flag(args, "--learner-level", 2),
-            false,
+            [],
           )
           println("--- system ---")
           println(request.system)

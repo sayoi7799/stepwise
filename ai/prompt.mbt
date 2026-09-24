@@ -9,21 +9,23 @@ const TEACHER_SYSTEM : String = "你是一位面向外国学习者的中文老�
 ///|
 /// 让学生在语境里理解一个词。
 ///
-/// `strict` 为真时加上更硬的约束，用于模型输出超出水平后的重试。
+/// `avoid` 是上一次尝试里被审计判定为超纲的词。重试时把它们点名列出来，
+/// 模型才知道具体该换掉什么——只说「太难了」是没有信息量的。
 pub fn explain_word_prompt(
   word : String,
   pinyin : String,
   level : Int,
   sentence : String,
   learner_level : Int,
-  strict : Bool,
+  avoid : Array[String],
 ) -> LlmRequest {
   let level_text = if level == 0 { "未收录" } else { "HSK \{level}" }
-  let strict_text = if strict {
-    "\n注意：上一次的解释对学习者太难了。请只用 HSK \{learner_level} 及以内的词，" +
-    "句子要短，不要写书面语。"
-  } else {
+  let strict_text = if avoid.length() == 0 {
     ""
+  } else {
+    let listed = avoid.join("、")
+    "\n注意：上一次的解释对学习者太难了。下面这些词超出了 HSK \{learner_level}，" +
+    "请全部换掉，改用更简单的说法：\{listed}。句子要短，不要写书面语。"
   }
   let user = "学习者水平：HSK \{learner_level}\n" +
     "要解释的词：\{word}（拼音 \{pinyin}，等级 \{level_text}）\n" +

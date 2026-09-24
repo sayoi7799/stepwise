@@ -1,6 +1,8 @@
 import {
   "gaato/http",
   "gaato/http-async" @async_http,
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
   "stepwise/lexicon",
   "stepwise/learner",
   "stepwise/segment",

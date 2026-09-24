@@ -51,6 +51,16 @@ pub fn OpenAiCompatClient::endpoint(self : OpenAiCompatClient) -> String {
 /// 纯函数，不碰网络——所以报文长什么样可以被测试精确固定住，
 /// 提示词改了什么、报文里就多什么，一测便知。
 pub fn chat_request_json(model : String, request : LlmRequest) -> Json {
+  chat_request_json_with_stream(model, request, false)
+}
+
+///|
+/// 同上，但可以要求服务端流式返回。
+pub fn chat_request_json_with_stream(
+  model : String,
+  request : LlmRequest,
+  stream : Bool,
+) -> Json {
   let messages = Json::array([
     Json::object({
       "role": Json::string("system"),
@@ -67,8 +77,146 @@ pub fn chat_request_json(model : String, request : LlmRequest) -> Json {
     "temperature": Json::number(
       request.temperature_permille.to_double() / 1000.0,
     ),
-    "stream": Json::boolean(false),
+    "stream": Json::boolean(stream),
   })
+}
+
+///|
+/// 从一条 `data:` 载荷里取出这一段的增量文本。
+///
+/// OpenAI 兼容的流式格式是 `choices[0].delta.content`；`[DONE]` 是结束标记，
+/// 没有内容。任何解析不了的情况都返回 `None`——流里出现心跳或未知字段
+/// 是正常的，不该让整次调用失败。
+pub fn stream_delta_text(payload : String) -> String? {
+  if payload == "[DONE]" {
+    return None
+  }
+  let json = @json.parse(payload) catch { _ => return None }
+  let fields = match json {
+    Object(object) => object
+    _ => return None
+  }
+  let choices = match fields.get("choices") {
+    Some(value) =>
+      match value {
+        Array(array) => array
+        _ => return None
+      }
+    None => return None
+  }
+  if choices.length() == 0 {
+    return None
+  }
+  let choice = match choices[0] {
+    Object(object) => object
+    _ => return None
+  }
+  let delta = match choice.get("delta") {
+    Some(value) =>
+      match value {
+        Object(object) => object
+        _ => return None
+      }
+    None => return None
+  }
+  match delta.get("content") {
+    Some(value) =>
+      match value {
+        String(text) => Some(text)
+        _ => None
+      }
+    None => None
+  }
+}
+
+///|
+/// SSE 增量解析器。
+///
+/// 网络给的字节块边界和事件边界没有关系：一个事件可能被切成几段，
+/// 也可能一次来好几个。所以按字节缓存，遇到换行才处理一整行，
+/// 这样跨块的 UTF-8 字符也不会被切坏。
+pub struct SseBuffer {
+  mut pending : Array[Byte]
+}
+
+///|
+pub fn SseBuffer::new() -> SseBuffer {
+  { pending: [], }
+}
+
+///|
+/// 喂一个字节块，返回其中所有完整的 `data:` 载荷。
+pub fn SseBuffer::feed(self : SseBuffer, chunk : Bytes) -> Array[String] {
+  let payloads : Array[String] = []
+  for byte in chunk.to_array() {
+    if byte.to_int() == 0x0A {
+      let line = @utf8.decode_lossy(Bytes::from_array(self.pending[:]))
+      self.pending = []
+      let trimmed = line.trim().to_owned()
+      if trimmed.has_prefix("data:") {
+        payloads.push(trimmed[5:].to_owned().trim().to_owned())
+      }
+    } else {
+      self.pending.push(byte)
+    }
+  }
+  payloads
+}
+
+///|
+/// 流式调用：每收到一段增量文本就回调一次，用来边生成边显示。
+pub async fn OpenAiCompatClient::complete_stream(
+  self : OpenAiCompatClient,
+  request : LlmRequest,
+  on_delta : async (String) -> Unit noraise,
+) -> LlmResponse raise LlmError {
+  let payload = chat_request_json_with_stream(self.model, request, true)
+  let http_request = @http.Request::post(self.endpoint())
+    .header("Content-Type", "application/json")
+    .header("Accept", "text/event-stream")
+    .header("Authorization", "Bearer " + self.api_key)
+    .json_body(payload)
+  let (head, body) = self.transport.send_stream(http_request) catch {
+    @http.HttpError::Connect(why) =>
+      raise Network("连不上模型服务：\{why}")
+    @http.HttpError::Timeout(ms) =>
+      raise Network("请求超时（\{ms} 毫秒）")
+    @http.HttpError::Protocol(why) => raise BadResponse("协议错误：\{why}")
+  }
+  if head.status != 200 {
+    body.close()
+    raise BadResponse("HTTP \{head.status}")
+  }
+  let buffer = SseBuffer::new()
+  let mut text = ""
+  let mut finished = false
+  while !finished {
+    let chunk = body.read_some() catch {
+      _ => {
+        body.close()
+        raise BadResponse("读取流式响应时出错")
+      }
+    }
+    match chunk {
+      None => finished = true
+      Some(bytes) =>
+        for payload in buffer.feed(bytes) {
+          if payload == "[DONE]" {
+            finished = true
+          } else {
+            match stream_delta_text(payload) {
+              Some(delta) => {
+                text = text + delta
+                on_delta(delta)
+              }
+              None => ()
+            }
+          }
+        }
+    }
+  }
+  body.close()
+  { text, }
 }
 
 ///|

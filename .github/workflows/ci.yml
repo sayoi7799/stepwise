@@ -13,6 +13,11 @@ jobs:
       - name: Set up MoonBit
         uses: hustcer/setup-moonbit@v1
 
+      # 干净的机器上没有 mooncakes 的索引，moon check 会因为解析不到
+      # 依赖（moonbitlang/x）直接失败，所以先把索引同步下来。
+      - name: Sync registry index
+        run: moon update
+
       - name: Check
         run: moon check
 

@@ -23,7 +23,7 @@ pub fn acceptable_explanation(stats : @learner.TextStats) -> Bool {
 /// 流程是「生成 → 用自己的尺度审 → 不过就带着更严的约束重试」。
 /// 最多试 `max_attempts` 次，全部不达标时返回最后一次的结果——
 /// 宁可交付一份略难的答案，也不要让整个阅读流程卡住。
-pub fn[C : LlmClient] explain_with_audit(
+pub async fn[C : LlmClient] explain_with_audit(
   client : C,
   word : String,
   pinyin : String,

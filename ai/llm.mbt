@@ -30,13 +30,23 @@ pub(all) suberror LlmError {
 }
 
 ///|
+/// 给人看的错误描述。
+pub fn LlmError::to_string(self : LlmError) -> String {
+  match self {
+    Network(why) => "网络问题：\{why}"
+    RateLimited(why) => "被限流：\{why}"
+    BadResponse(why) => "响应不符合预期：\{why}"
+  }
+}
+
+///|
 /// 模型客户端。
 ///
 /// 这是整条流水线里唯一不确定的东西，所以它被压缩成一个 trait：
 /// 生产环境是真客户端，测试里换成脚本化的假客户端，CI 不联网、
 /// 不需要 API key 也能跑完整流程。
 pub(open) trait LlmClient {
-  fn complete(Self, LlmRequest) -> LlmResponse raise LlmError
+  async fn complete(Self, LlmRequest) -> LlmResponse raise LlmError
 }
 
 ///|

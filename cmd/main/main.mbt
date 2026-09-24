@@ -1,10 +1,10 @@
 ///|
 /// 命令行入口。
 ///
-/// 目前所有命令都在本地完成：读文件、分词、算难度、出报告。
-/// 需要模型的那一步（`prompt`）只把提示词原样打印出来，方便
-/// 先用假客户端把质量闸门跑通，再决定接哪家模型。
-fn main {
+/// analyze / vocab / anki 全部在本地完成：读文件、分词、算难度、出报告。
+/// `prompt` 只把要发出去的提示词打印出来，`explain` 才真的调模型，
+/// 并且把模型的输出送回我们自己的分词器审计。
+async fn main {
   let args = @env.args()
   let command = if args.length() >= 2 { args[1] } else { "" }
   match command {
@@ -12,6 +12,7 @@ fn main {
     "vocab" => run_vocab(args)
     "anki" => run_anki(args)
     "prompt" => run_prompt(args)
+    "explain" => run_explain(args)
     _ => print_usage()
   }
 }
@@ -29,6 +30,13 @@ fn print_usage() -> Unit {
   println("      导出 Anki 可直接导入的卡片文本")
   println("  stepwise prompt <词> <原句> [--level N] [--learner-level M]")
   println("      打印会发给模型的提示词（离线，不联网）")
+  println("  stepwise explain <词> <原句> [--level N] [--learner-level M]")
+  println(
+    "      真的让模型解释这个词：输出会先过一遍可读性审计，",
+  )
+  println(
+    "      不达标就带着更严的约束重试。需要 DEEPSEEK_API_KEY。",
+  )
   println("")
   println(
     "默认学习者等级为 2，默认词表为 data/hsk30.tsv（HSK 3.0，10978 词）。",
@@ -36,22 +44,145 @@ fn print_usage() -> Unit {
 }
 
 ///|
+/// 让模型真的解释一个词，并把审计结果一并打出来。
+///
+/// 读 `DEEPSEEK_API_KEY`。没配的时候给出设置方法，而不是直接崩掉——
+/// 使用者多半是第一次跑，告诉他怎么配比抛一个栈有用。
+async fn run_explain(args : Array[String]) -> Unit {
+  let word = match positional(args, 2) {
+    None => {
+      print_usage()
+      return
+    }
+    Some(value) => value
+  }
+  let sentence = match positional(args, 3) {
+    None => {
+      print_usage()
+      return
+    }
+    Some(value) => value
+  }
+  let key = match api_key() {
+    None => {
+      println("没有找到 DEEPSEEK_API_KEY 环境变量。")
+      println("在 PowerShell 里这样设置（只对当前窗口有效）：")
+      println("  $env:DEEPSEEK_API_KEY = \"sk-...\"")
+      println(
+        "想先看看要发出去的提示词，可以用 stepwise prompt。",
+      )
+      return
+    }
+    Some(value) => value
+  }
+  let lexicon = load_lexicon(args)
+  let learner = learner_from(args)
+  let client = @ai.OpenAiCompatClient::new(key)
+  println("模型：\{client.model()}")
+  println("地址：\{client.endpoint()}")
+  println("学习者水平：HSK \{learner.level()}\n")
+  let answer = @ai.explain_with_audit(
+    client,
+    word,
+    string_flag(args, "--pinyin", ""),
+    int_flag(args, "--word-level", 0),
+    sentence,
+    lexicon,
+    learner,
+    int_flag(args, "--attempts", 3),
+  ) catch {
+    error => {
+      println("调用失败：\{error.to_string()}")
+      return
+    }
+  }
+  println(answer)
+  let stats = @ai.audit(answer, lexicon, learner)
+  println("")
+  println(
+    "可读性审计：覆盖率 \{stats.coverage_percent_text()}%，生词 \{stats.unknown_types_count()} 个",
+  )
+  if @ai.acceptable_explanation(stats) {
+    println("结论：这段解释对当前水平是够浅的。")
+  } else {
+    println(
+      "结论：这段解释偏难，重试后仍不达标，建议换个说法或降低等级。",
+    )
+  }
+}
+
+///|
+/// 从环境变量取 API key；没设置或者是空白都算没配。
+fn api_key() -> String? {
+  match @env.get_env_var("DEEPSEEK_API_KEY") {
+    None => None
+    Some(key) => {
+      let trimmed = key.trim().to_owned()
+      if trimmed == "" {
+        None
+      } else {
+        Some(trimmed)
+      }
+    }
+  }
+}
+
+///|
 fn run_analyze(args : Array[String]) -> Unit {
   match positional(args, 2) {
-    Some(path) =>
-      match load(path, args) {
-        Some(loaded) =>
-          println(
-            @export.markdown_report(
-              path,
-              loaded.1,
-              loaded.0,
-              learner_from(args),
-            ),
-          )
-        None => println("读不到文件：\{path}")
+    Some(path) => {
+      let learner = learner_from(args)
+      if path.has_suffix(".epub") {
+        analyze_epub(path, args, learner)
+      } else {
+        match load(path, args) {
+          Some(loaded) =>
+            println(@export.markdown_report(path, loaded.1, loaded.0, learner))
+          None => println("读不到文件：\{path}")
+        }
       }
+    }
     None => print_usage()
+  }
+}
+
+///|
+/// 读一整本 EPUB。
+///
+/// 带 `--chapter N` 时只体检第 N 章，不带就输出整本书的报告。
+fn analyze_epub(
+  path : String,
+  args : Array[String],
+  learner : @learner.Learner,
+) -> Unit {
+  let lexicon = load_lexicon(args)
+  let bytes = match read_bytes(path) {
+    Some(content) => content
+    None => {
+      println("读不到文件：\{path}")
+      return
+    }
+  }
+  let book = match open_book(bytes) {
+    Some(book) => book
+    None => {
+      println("这本书打不开（需要是标准 EPUB）：\{path}")
+      return
+    }
+  }
+  let chapter_index = int_flag(args, "--chapter", 0)
+  let chapters = book.chapters()
+  if chapter_index > 0 {
+    if chapter_index > chapters.length() {
+      println("这本书只有 \{chapters.length()} 章。")
+    } else {
+      let chapter = chapters[chapter_index - 1]
+      println(
+        @export.markdown_report(chapter.title, chapter.text, lexicon, learner),
+      )
+    }
+  } else {
+    println(@export.markdown_book_report(book, lexicon, learner))
   }
 }
 
@@ -145,14 +276,17 @@ fn load(path : String, args : Array[String]) -> (@lexicon.Lexicon, String)? {
   let text = read_text(path)
   match text {
     None => None
-    Some(content) => {
-      let lexicon_path = string_flag(args, "--lexicon", "data/hsk30.tsv")
-      let lexicon = match read_text(lexicon_path) {
-        Some(raw) => @lexicon.Lexicon::from_tsv(raw)
-        None => @lexicon.Lexicon::empty()
-      }
-      Some((lexicon, content))
-    }
+    Some(content) => Some((load_lexicon(args), content))
+  }
+}
+
+///|
+/// 读词表：`--lexicon` 指定路径，默认用仓库里随附的 HSK 3.0 词表。
+fn load_lexicon(args : Array[String]) -> @lexicon.Lexicon {
+  let path = string_flag(args, "--lexicon", "data/hsk30.tsv")
+  match read_text(path) {
+    Some(raw) => @lexicon.Lexicon::from_tsv(raw)
+    None => @lexicon.Lexicon::empty()
   }
 }
 
@@ -160,6 +294,20 @@ fn load(path : String, args : Array[String]) -> (@lexicon.Lexicon, String)? {
 /// 读文件，失败返回 None（命令行的错误提示自己负责，不抛异常）。
 fn read_text(path : String) -> String? {
   let result : String? = Some(@fs.read_file_to_string(path)) catch { _ => None }
+  result
+}
+
+///|
+/// 读二进制文件，失败返回 None。
+fn read_bytes(path : String) -> Bytes? {
+  let result : Bytes? = Some(@fs.read_file_to_bytes(path)) catch { _ => None }
+  result
+}
+
+///|
+/// 打开一本 EPUB，失败返回 None。
+fn open_book(bytes : Bytes) -> @epub.Book? {
+  let result : @epub.Book? = Some(@epub.open(bytes)) catch { _ => None }
   result
 }
 

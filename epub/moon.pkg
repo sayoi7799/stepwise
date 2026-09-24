@@ -1,0 +1,9 @@
+import {
+  "moonbit-community/zipc",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/hashmap",
+}
+
+import {
+  "moonbitlang/x/fs",
+} for "test"

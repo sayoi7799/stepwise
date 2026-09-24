@@ -66,3 +66,85 @@ pub fn markdown_report(
     "3. 第二天用同一份文本再读一遍，看看覆盖率有没有变化。\n"
   out
 }
+
+///|
+/// 生成整本书的阅读报告。
+///
+/// 比单篇报告多一张「逐章体检表」——学习者最想知道的是
+/// 「这本书我从第几章开始能读下去」，而不是一个笼统的难度分数。
+pub fn markdown_book_report(
+  book : @epub.Book,
+  lex : @lexicon.Lexicon,
+  learner : @learner.Learner,
+) -> String {
+  let text = book.plain_text()
+  let stats = @learner.analyze(@segment.segment(text, lex), learner)
+  let vocab = @learner.collect_vocabulary(text, lex, learner)
+  let picked = @learner.pick_learning_sentences(text, lex, learner, 5)
+  let title = if book.title() == "" { "（无书名）" } else { book.title() }
+  let mut out = "# \{title}\n\n"
+  out = out + "学习者水平：HSK \{learner.level()}\n\n"
+  out = out + "## 全书概览\n\n"
+  out = out + "- 章节数：\{book.chapter_count()}\n"
+  out = out + "- 词数：\{stats.tokens()}\n"
+  out = out + "- 已知词覆盖率：\{stats.coverage_percent_text()}%\n"
+  out = out +
+    "- 生词：\{stats.unknown_types_count()} 个（共出现 \{stats.unknown_tokens()} 次）\n"
+  out = out + "- 判定：\{readability_label(@learner.readability(stats))}\n\n"
+  out = out + "## 逐章体检\n\n"
+  out = out +
+    "| 章节 | 词数 | 覆盖率 | 判定 |\n| --- | --- | --- | --- |\n"
+  let mut first_readable = 0
+  let mut index = 0
+  for chapter in book.chapters() {
+    index = index + 1
+    let chapter_stats = @learner.analyze(
+      @segment.segment(chapter.text, lex),
+      learner,
+    )
+    let readable = @learner.readability(chapter_stats)
+    if first_readable == 0 && readable == Comfortable {
+      first_readable = index
+    }
+    out = out +
+      "| \{chapter.title} | \{chapter_stats.tokens()} | \{chapter_stats.coverage_percent_text()}% | \{readability_label(readable)} |\n"
+  }
+  out = out + "\n"
+  if first_readable > 0 {
+    out = out + "从第 \{first_readable} 章开始可以顺畅阅读。\n\n"
+  } else {
+    out = out +
+      "目前还没有哪一章达到顺畅阅读的覆盖率，建议先降级改写再读。\n\n"
+  }
+  out = out + "## 全书生词表\n\n"
+  if vocab.length() == 0 {
+    out = out + "这本书没有生词，可以直接读。\n\n"
+  } else {
+    out = out +
+      "| 词 | 拼音 | 等级 | 出现 |\n| --- | --- | --- | --- |\n"
+    for entry in vocab {
+      out = out +
+        "| \{entry.word} | \{entry.pinyin} | \{level_label(entry.level)} | \{entry.count} |\n"
+    }
+    out = out + "\n"
+  }
+  out = out + "## 值得精读的句子\n\n"
+  if picked.length() == 0 {
+    out = out + "还没有可推荐的句子。\n\n"
+  } else {
+    for report in picked {
+      out = out + "- \{report.text}\n"
+      let unknown = report.unknown.join("、")
+      if unknown != "" {
+        out = out + "  生词：\{unknown}\n"
+      }
+    }
+    out = out + "\n"
+  }
+  out = out + "## 下一步\n\n"
+  out = out +
+    "1. 把全书生词导出成卡片（`stepwise anki`），每天复习一批。\n"
+  out = out +
+    "2. 先读覆盖率最高的章节，把生词读熟再回头看前面的。\n"
+  out
+}

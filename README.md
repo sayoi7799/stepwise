@@ -33,9 +33,61 @@ every explanation inside Chinese you can already read.
 ```
 
 这意味着 CI 里不需要 API key、不需要网络，也能把整条流程跑完整——测试用的
-是脚本化的假客户端（`ai.ScriptedClient`）。
+是脚本化的假客户端（`ai.ScriptedClient`）；真客户端也走同一个 trait。
 
 ## 现在能做什么
+
+### 读一整本 EPUB
+
+```bash
+moon run cmd/main -- analyze samples/sample.epub --level 2
+```
+
+```
+# 我的中国朋友
+
+## 全书概览
+
+- 章节数：2
+- 已知词覆盖率：89.6%
+- 生词：7 个（共出现 11 次）
+
+## 逐章体检
+
+| 章节 | 词数 | 覆盖率 | 判定 |
+| --- | --- | --- | --- |
+| 第一章 我有一个中国朋友 | 57 | 91.2% | 有点挑战，需要一点支撑 |
+| 第二章 茶是一种语言 | 49 | 87.7% | 偏难，建议先降级改写再读 |
+```
+
+EPUB 就是 ZIP 加一套 XML。这里按规范三步走：先读
+`META-INF/container.xml` 找到 OPF，再从 OPF 读清单与阅读顺序，最后按
+spine 顺序把每章 XHTML 提成纯文本。解压交给 `moonbit-community/zipc`，
+路径解析、实体解码、标签剥离都是自己的代码，全部有测试。
+加 `--chapter 2` 可以只看某一章。
+
+### 真的让模型解释一个词
+
+```bash
+export DEEPSEEK_API_KEY=sk-...
+moon run cmd/main -- explain 意思 "这句话很有意思。" --pinyin yìsi --word-level 3
+```
+
+```
+模型：deepseek-chat
+学习者水平：HSK 2
+
+（模型用中文给出的解释）
+
+可读性审计：覆盖率 96.0%，生词 1 个
+结论：这段解释对当前水平是够浅的。
+```
+
+HTTP、TLS、连接池交给 `gaato/http-async`（底子是官方的
+`moonbitlang/async`）；拼报文和读响应是我们自己的纯函数，有测试精确固定。
+想先看看要发出去什么，用 `prompt` 命令，它完全离线。
+
+### 单篇文章
 
 ```bash
 moon run cmd/main -- analyze samples/sample.txt --level 2
@@ -115,7 +167,8 @@ lexicon/   词表：TSV 加载、等级查询、最长词长度
 segment/   分句、双向最大匹配分词、token 类型与偏移
 learner/   学习者画像、覆盖率、难度分档、生词表、精读句挑选
 srs/       间隔重复调度（SM-2，整数版本）
-ai/        模型接口、提示词组装、输出审计、带质量闸门的生成
+epub/      EPUB 读取：ZIP 容器、OPF 清单、XHTML 转纯文本
+ai/        模型接口与 OpenAI 兼容客户端、提示词组装、输出审计、质量闸门
 export/    Anki 卡片导出、Markdown 阅读报告
 cmd/main/  命令行入口
 data/      HSK 3.0 词表与原始数据（含许可说明）
@@ -159,8 +212,10 @@ moon test
 
 - [x] 接入完整 HSK 3.0 词表（10,978 词，含拼音与许可说明）
 - [ ] 人名 / 地名 / 专有名词忽略表，减少「小明」这类假生词
-- [ ] 真模型客户端（OpenAI 兼容接口 + SSE 流式），保留假客户端作为默认
-- [ ] EPUB / Markdown 读取：从整本书切章节，逐章评估
+- [x] EPUB 读取：整本书切章节、逐章评估
+- [x] 真模型客户端（OpenAI 兼容接口），假客户端保留为测试默认
+- [ ] SSE 流式输出：边生成边显示
+- [ ] Markdown / 纯文本的章节切分
 - [ ] 跨章节的词汇去重，按「这一章需要的新词」组织复习
 - [ ] 阅读进度与复习记录持久化，让掌握范围真的随时间长大
 - [ ] `wasm-gc` 后端的浏览器阅读器

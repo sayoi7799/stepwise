@@ -30,7 +30,9 @@ fn print_usage() -> Unit {
   println("  stepwise prompt <词> <原句> [--level N] [--learner-level M]")
   println("      打印会发给模型的提示词（离线，不联网）")
   println("")
-  println("默认学习者等级为 2，默认词表为 data/hsk_sample.tsv。")
+  println(
+    "默认学习者等级为 2，默认词表为 data/hsk30.tsv（HSK 3.0，10978 词）。",
+  )
 }
 
 ///|
@@ -144,7 +146,7 @@ fn load(path : String, args : Array[String]) -> (@lexicon.Lexicon, String)? {
   match text {
     None => None
     Some(content) => {
-      let lexicon_path = string_flag(args, "--lexicon", "data/hsk_sample.tsv")
+      let lexicon_path = string_flag(args, "--lexicon", "data/hsk30.tsv")
       let lexicon = match read_text(lexicon_path) {
         Some(raw) => @lexicon.Lexicon::from_tsv(raw)
         None => @lexicon.Lexicon::empty()

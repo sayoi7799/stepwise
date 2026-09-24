@@ -21,4 +21,8 @@ description = "中文分级阅读流水线：用中文理解中文，而不是�
 
 import {
   "moonbitlang/x@0.5.5",
+  "moonbit-community/zipc@0.2.2",
+  "gaato/http-async@0.1.1",
+  "gaato/http@0.1.0",
+  "moonbitlang/async@0.22.3",
 }

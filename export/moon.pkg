@@ -1,4 +1,5 @@
 import {
+  "stepwise/epub",
   "stepwise/lexicon",
   "stepwise/learner",
   "stepwise/segment",

@@ -54,7 +54,7 @@ test "审计：超纲词太多的解释不通过" {
 }
 
 ///|
-test "质量闸门：第一次太深就带着更严的约束重试" {
+async test "质量闸门：第一次太深就带着更严的约束重试" {
   let lex = @lexicon.Lexicon::from_tsv(AI_LEXICON)
   let learner = @learner.Learner::new(2)
   let client = @ai.ScriptedClient::new([
@@ -70,7 +70,7 @@ test "质量闸门：第一次太深就带着更严的约束重试" {
 }
 
 ///|
-test "质量闸门：一直不达标时返回最后一次结果，不卡住流程" {
+async test "质量闸门：一直不达标时返回最后一次结果，不卡住流程" {
   let lex = @lexicon.Lexicon::from_tsv(AI_LEXICON)
   let learner = @learner.Learner::new(1)
   let client = @ai.ScriptedClient::new([
@@ -84,7 +84,7 @@ test "质量闸门：一直不达标时返回最后一次结果，不卡住流�
 }
 
 ///|
-test "脚本用尽时报 BadResponse" {
+async test "脚本用尽时报 BadResponse" {
   let client = @ai.ScriptedClient::new([])
   let request = @ai.explain_word_prompt("词", "cí", 3, "句子", 1, false)
   let result : Result[@ai.LlmResponse, @ai.LlmError] = Ok(

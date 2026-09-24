@@ -1,5 +1,14 @@
 import {
+  "gaato/http",
+  "gaato/http-async" @async_http,
   "stepwise/lexicon",
   "stepwise/learner",
   "stepwise/segment",
 }
+
+supported_targets = "+native"
+
+import {
+  "moonbitlang/core/json",
+  "moonbitlang/async",
+} for "test"

@@ -273,10 +273,34 @@ fn positional(args : Array[String], index : Int) -> String? {
 ///
 /// 词表路径可以用 `--lexicon` 指定；不给就用仓库里的示例词表。
 fn load(path : String, args : Array[String]) -> (@lexicon.Lexicon, String)? {
-  let text = read_text(path)
-  match text {
-    None => None
-    Some(content) => Some((load_lexicon(args), content))
+  load_text(path, args)
+}
+
+///|
+/// 读入待分析的正文。
+///
+/// `.epub` 先解出整本书的纯文本，其它扩展名按文本直接读。所有命令都走这里，
+/// 就不会出现「analyze 认 epub、vocab 不认」这种前后不一致的事。
+fn load_text(
+  path : String,
+  args : Array[String],
+) -> (@lexicon.Lexicon, String)? {
+  let lexicon = load_lexicon(args)
+  if path.has_suffix(".epub") {
+    let bytes = match read_bytes(path) {
+      None => return None
+      Some(value) => value
+    }
+    let book = match open_book(bytes) {
+      None => return None
+      Some(value) => value
+    }
+    Some((lexicon, book.plain_text()))
+  } else {
+    match read_text(path) {
+      None => None
+      Some(content) => Some((lexicon, content))
+    }
   }
 }
 

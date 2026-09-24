@@ -37,8 +37,8 @@ every explanation inside Chinese you can already read.
 
 ## 现在能做什么
 
-```
-$ stepwise analyze samples/sample.txt --level 2
+```bash
+moon run cmd/main -- analyze samples/sample.txt --level 2
 ```
 
 ```
@@ -49,27 +49,31 @@ $ stepwise analyze samples/sample.txt --level 2
 ## 概览
 
 - 句子数：11
-- 词数：134
-- 已知词覆盖率：76.1%
-- 生词：25 个（共出现 32 次）
-- 判定：偏难，建议先降级改写再读
+- 词数：117
+- 已知词覆盖率：90.5%
+- 生词：7 个（共出现 11 次）
+- 判定：有点挑战，需要一点支撑
 
 ## 生词表
 
 | 词 | 拼音 | 等级 | 出现 |
 | --- | --- | --- | --- |
-| 语言 | yǔyán | HSK 3 | 1 |
-| 慢 | màn | HSK 3 | 4 |
+| 只是 | zhǐshì | HSK 3 | 2 |
+| 慢慢 | mànmàn | HSK 3 | 2 |
+| 世界 | shìjiè | HSK 3 | 1 |
 ...
 ```
 
 其它命令：
 
+```bash
+moon run cmd/main -- vocab  <文件> [--level N]      只列生词表
+moon run cmd/main -- anki   <文件> [--level N]      导出 Anki 可直接导入的卡片
+moon run cmd/main -- prompt <词> <原句> [--level N] 打印会发给模型的提示词（离线）
 ```
-stepwise vocab  <文件> [--level N]      只列生词表
-stepwise anki   <文件> [--level N]      导出 Anki 可直接导入的卡片
-stepwise prompt <词> <原句> [--level N] 打印会发给模型的提示词（离线）
-```
+
+（`stepwise` 是产品名；开发期统一用 `moon run cmd/main --` 调用，命令要在
+项目根目录执行，因为默认词表路径是相对的。）
 
 ## 快速开始
 
@@ -114,18 +118,31 @@ srs/       间隔重复调度（SM-2，整数版本）
 ai/        模型接口、提示词组装、输出审计、带质量闸门的生成
 export/    Anki 卡片导出、Markdown 阅读报告
 cmd/main/  命令行入口
-data/      示例词表
+data/      HSK 3.0 词表与原始数据（含许可说明）
+tools/     词表转换脚本
 samples/   示例文本
 ```
 
-## 关于词表（重要）
+## 词表
 
-`data/hsk_sample.tsv` 是**给测试和演示用的精选子集**，约 150 个词，等级为
-近似值。它不是完整的 HSK 词表，所以你会在示例输出里看到 `明`、`近`、`路`
-这类常用词被标成「未收录」——这是词表的问题，不是分词的问题。
+仓库里带的是完整的 **HSK 3.0 词汇表，10,978 个词**，来自
+《国际中文教育中文水平等级标准》(GF 0025-2021)，经
+[ivankra/hsk30](https://github.com/ivankra/hsk30) 整理，MIT 许可。
+原始 CSV 和许可证全文都随仓库提交在 `data/source/`，转换脚本在
+`tools/convert_hsk30.ps1`，细节见 `data/README.md`。
 
-真实使用前请把完整 HSK 词表（HSK 3.0 共九级约 1.1 万词）按同样的格式放进
-`data/`，覆盖率数字会有质的变化。这是本项目下一步优先级最高的事情。
+各等级词数：1 级 508、2 级 753、3 级 953、4 级 973、5 级 1059、
+6 级 1124、7 级 5608（7 代表官方的「7-9 级」高级段）。
+
+换词表不需要改代码，只要保持「词 / 等级 / 拼音」三列：
+
+```bash
+moon run cmd/main -- analyze 你的文章.txt --lexicon 你的词表.tsv
+```
+
+示例文本里 `明` 被标成「未收录」，是因为它来自人名「小明」——
+HSK 词表不收专有名词，这是分词在真实文本上的正常边界，
+后续会加一份人名/地名忽略表来减少这类噪声。
 
 ## 测试
 
@@ -140,7 +157,8 @@ moon test
 
 ## 路线图
 
-- [ ] 接入完整 HSK 3.0 词表，并把等级校正到官方分级
+- [x] 接入完整 HSK 3.0 词表（10,978 词，含拼音与许可说明）
+- [ ] 人名 / 地名 / 专有名词忽略表，减少「小明」这类假生词
 - [ ] 真模型客户端（OpenAI 兼容接口 + SSE 流式），保留假客户端作为默认
 - [ ] EPUB / Markdown 读取：从整本书切章节，逐章评估
 - [ ] 跨章节的词汇去重，按「这一章需要的新词」组织复习
@@ -155,3 +173,5 @@ moon test
 ## 许可证
 
 Apache-2.0。见 `LICENSE`。
+
+参赛用的一页项目说明见 `docs/项目说明.md`。

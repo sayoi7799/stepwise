@@ -149,6 +149,8 @@ moon run cmd/main -- serve samples/sample.epub --level 2
 # 学习版已就绪：http://127.0.0.1:8787/
 ```
 
+![点一段，模型给出改写与英文对照](docs/demo-serve.png)
+
 打开页面后**点任意一段**，模型会把这段改写成你读得懂的中文，并附一句英文对照：
 
 ```

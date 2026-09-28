@@ -41,15 +41,24 @@ Write-Section "五、要发给模型的提示词（离线，不联网）"
 Invoke-Moon @("run", "cmd/main", "--", "prompt", "意思", "这句话很有意思。", "--pinyin", "yìsi", "--word-level", "3", "--learner-level", "2")
 
 if ($env:DEEPSEEK_API_KEY) {
-  Write-Section "六、真的调模型：生成 → 审计 → 不达标就加严重试"
+  Write-Section "六、生成学习版网页（用模型解释前 3 个生词）"
+  Invoke-Moon @("run", "cmd/main", "--", "html", "samples/sample.epub", "--level", "2", "--out", "samples/sample.study.html", "--explain-top", "3")
+}
+else {
+  Write-Section "六、生成学习版网页（不调模型，只做高亮与生词表）"
+  Invoke-Moon @("run", "cmd/main", "--", "html", "samples/sample.epub", "--level", "2", "--out", "samples/sample.study.html")
+}
+
+if ($env:DEEPSEEK_API_KEY) {
+  Write-Section "七、真的调模型：生成 → 审计 → 不达标就加严重试"
   Invoke-Moon @("run", "cmd/main", "--", "explain", "意思", "这句话很有意思。", "--pinyin", "yìsi", "--word-level", "3", "--learner-level", "2", "--attempts", "3")
 }
 else {
-  Write-Section "六、真模型这一段需要 DEEPSEEK_API_KEY，已跳过"
+  Write-Section "七、真模型这一段需要 DEEPSEEK_API_KEY，已跳过"
   Write-Output "  设置方法（PowerShell，只对当前窗口有效）："
   Write-Output '    $env:DEEPSEEK_API_KEY = "sk-..."'
   Write-Output "  然后再跑一次 pwsh tools/demo.ps1"
 }
 
 Write-Output ""
-Write-Output "演示结束。"
+Write-Output "演示结束。学习版网页已生成，用浏览器打开 samples/sample.study.html 就能读。"

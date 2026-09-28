@@ -13,6 +13,7 @@ async fn main {
     "anki" => run_anki(args)
     "prompt" => run_prompt(args)
     "explain" => run_explain(args)
+    "html" => run_html(args)
     _ => print_usage()
   }
 }
@@ -33,6 +34,15 @@ fn print_usage() -> Unit {
   println("  stepwise explain <词> <原句> [--level N] [--learner-level M]")
   println(
     "      真的让模型解释这个词：输出会先过一遍可读性审计，",
+  )
+  println(
+    "  stepwise html <文件> [--level N] [--out 输出.html] [--explain-top N]",
+  )
+  println(
+    "      生成浏览器里打开就能用的学习版：生词高亮、悬停看拼音与等级，",
+  )
+  println(
+    "      附生词表与精读句推荐；加 --explain-top N 会用模型解释前 N 个生词。",
   )
   println(
     "      不达标就带着更严的约束重试。需要 DEEPSEEK_API_KEY。",
@@ -181,6 +191,137 @@ fn api_key() -> String? {
         Some(trimmed)
       }
     }
+  }
+}
+
+///|
+/// 生成学习版网页：这是产品对学习者的交付面。
+///
+/// 一本书进去，一份浏览器里打开就能读的页面出来——生词高亮、
+/// 悬停看拼音与等级、附生词表和精读句。加 `--explain-top N` 还会
+/// 用模型解释前 N 个生词（需要 key，失败就跳过那个词，不影响整页）。
+async fn run_html(args : Array[String]) -> Unit {
+  let path = match positional(args, 2) {
+    None => {
+      print_usage()
+      return
+    }
+    Some(value) => value
+  }
+  let lexicon = load_lexicon(args)
+  let learner = learner_from(args)
+  let text = match load_text(path, args) {
+    None => {
+      println("读不到文件：\{path}")
+      return
+    }
+    Some(value) => value.1
+  }
+  let title = book_title(path).unwrap_or(path)
+  let limit = int_flag(args, "--explain-top", 0)
+  let explanations = if limit > 0 {
+    match api_key() {
+      None => {
+        println(
+          "没有找到 DEEPSEEK_API_KEY，跳过模型解释，只生成高亮与生词表。",
+        )
+        []
+      }
+      Some(key) => {
+        let vocab = @learner.collect_vocabulary(text, lexicon, learner)
+        explain_top_vocab(
+          vocab,
+          lexicon,
+          learner,
+          limit,
+          key,
+          int_flag(args, "--attempts", 3),
+        )
+      }
+    }
+  } else {
+    []
+  }
+  let page = @export.study_page(title, text, lexicon, learner, explanations)
+  let out_path = string_flag(args, "--out", path + ".study.html")
+  if write_text(out_path, page) {
+    println("已生成：\{out_path}")
+    println("用浏览器打开它就能读。")
+  } else {
+    println("写不进去：\{out_path}")
+  }
+}
+
+///|
+/// EPUB 就取书名，其它文件返回 None（由调用方退回用路径当标题）。
+fn book_title(path : String) -> String? {
+  if !path.has_suffix(".epub") {
+    return None
+  }
+  match read_bytes(path) {
+    None => None
+    Some(bytes) =>
+      match open_book(bytes) {
+        None => None
+        Some(book) => {
+          let title = book.title()
+          if title == "" {
+            None
+          } else {
+            Some(title)
+          }
+        }
+      }
+  }
+}
+
+///|
+/// 让模型解释前 `limit` 个生词，返回「词 → 解释」。
+///
+/// 单个词失败只跳过它——生成整页比解释全对更重要。
+async fn explain_top_vocab(
+  vocab : Array[@learner.VocabEntry],
+  lexicon : @lexicon.Lexicon,
+  learner : @learner.Learner,
+  limit : Int,
+  key : String,
+  attempts : Int,
+) -> Array[(String, String)] {
+  let client = @ai.OpenAiCompatClient::new(key)
+  let out : Array[(String, String)] = []
+  let mut i = 0
+  while i < vocab.length() && i < limit {
+    let entry = vocab[i]
+    println("正在解释 \{i + 1}/\{limit}：\{entry.word}")
+    let answer = @ai.explain_with_audit(
+      client,
+      entry.word,
+      entry.pinyin,
+      entry.level,
+      entry.first_sentence,
+      lexicon,
+      learner,
+      attempts,
+    ) catch {
+      _ => ""
+    }
+    if answer != "" {
+      out.push((entry.word, answer))
+    }
+    i = i + 1
+  }
+  out
+}
+
+///|
+/// 写文件，成功返回 true。
+fn write_text(path : String, content : String) -> Bool {
+  let result : Unit? = Some(@fs.write_string_to_file(path, content)) catch {
+    _ => None
+  }
+  match result {
+    Some(_) => true
+    None => false
   }
 }
 

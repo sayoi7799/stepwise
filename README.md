@@ -9,8 +9,12 @@ translating a page into English, it measures how much of a text you already
 understand, finds the words that are exactly one level above you, and keeps
 every explanation inside Chinese you can already read.
 
-当前状态：**86 个测试全部离线通过**（不需要网络与 API key，CI 每次提交都跑）、
-行覆盖率 **799/1129（70.8%）**、命令行主线在 `samples/` 上都有可复现输出。
+当前状态：**94 个测试全部离线通过**（不需要网络与 API key，CI 每次提交都跑）、
+命令行主线在 `samples/` 上都有可复现输出。
+
+最快看到产品长什么样：用浏览器打开
+[`samples/sample.study.html`](samples/sample.study.html)——那是一本 EPUB
+经过这个流水线处理后的成品，生词高亮、悬停看拼音与等级、附生词表和精读句。
 
 ## 为什么不是「又一个翻译器」
 
@@ -124,6 +128,19 @@ HTTP、TLS、连接池交给 `gaato/http-async`（底子是官方的
 ```bash
 moon run cmd/main -- analyze samples/sample.txt --level 2
 ```
+
+### 生成学习版网页（产品的交付面）
+
+```bash
+moon run cmd/main -- html samples/sample.epub --level 2 --out samples/sample.study.html --explain-top 3
+```
+
+一本书进去，一份**打开就能读**的页面出来：生词高亮、鼠标停上去看拼音与
+等级、生词表（加 `--explain-top N` 会带模型给的中文解释）、值得精读的句子。
+页面完全自包含——CSS 内联、不引任何外部资源、不用装任何东西，双击就能看，
+离线也能看。
+
+仓库里已经放了一份生成好的：[`samples/sample.study.html`](samples/sample.study.html)。
 
 ```
 # samples/sample.txt

@@ -1,6 +1,11 @@
 import {
   "moonbitlang/core/env",
+  "moonbitlang/core/encoding/utf8",
+  "moonbitlang/core/json",
   "moonbitlang/async",
+  "moonbitlang/async/http" @ahttp,
+  "moonbitlang/async/io",
+  "moonbitlang/async/socket",
   "moonbitlang/async/stdio",
   "moonbitlang/x/fs",
   "stepwise/ai",

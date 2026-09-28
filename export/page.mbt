@@ -87,6 +87,15 @@ const PAGE_STYLE : String =
   #|  ul.sentences { padding-left: 20px; }
   #|  ul.sentences li { font-family: Georgia, "Songti SC", serif; margin: 8px 0; }
   #|  .hint { color: var(--dim); font-size: 0.85rem; }
+  #|  p.clickable { cursor: pointer; border-radius: 6px; }
+  #|  p.clickable:hover { background: #fffdf3; box-shadow: 0 0 0 6px #fffdf3; }
+  #|  .card { margin: 6px 0 18px; padding: 14px 18px; background: #fff;
+  #|          border-left: 3px solid var(--accent); border-radius: 6px;
+  #|          font-family: -apple-system, "Segoe UI", sans-serif; font-size: 1rem;
+  #|          box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  #|  .card .zh { font-weight: 500; }
+  #|  .card .en { color: var(--dim); margin-top: 6px; font-size: 0.95rem; }
+  #|  .card .note { color: var(--dim); margin-top: 8px; font-size: 0.8rem; }
   #|  footer { color: var(--dim); font-size: 0.82rem; margin-top: 48px; border-top: 1px solid var(--line); padding-top: 14px; }
   #|</style>
 
@@ -101,6 +110,7 @@ pub fn study_page(
   lex : @lexicon.Lexicon,
   learner : @learner.Learner,
   explanations : Array[(String, String)],
+  interactive? : Bool = false,
 ) -> String {
   let stats = @learner.analyze(@segment.segment(text, lex), learner)
   let vocab = @learner.collect_vocabulary(text, lex, learner)
@@ -141,10 +151,12 @@ pub fn study_page(
   if normalized == "" {
     out = out + "<p class=\"hint\">这一篇没有正文。</p>\n"
   } else {
+    out = out + "<section class=\"text\">\n"
     for paragraph in paragraphs {
       let line = paragraph.to_owned()
       out = out + "<p>" + render_line(line, lex, learner) + "</p>\n"
     }
+    out = out + "</section>\n"
   }
   // 生词表：有模型解释就用上，没有就只列词、拼音、等级
   out = out + "<h2>生词表</h2>\n"
@@ -201,9 +213,63 @@ pub fn study_page(
   }
   out = out +
     "<footer>由「拾级 Stepwise」生成 · 词表 HSK 3.0 · 覆盖率门槛 95%</footer>\n"
-  out = out + "</div>\n</body>\n</html>\n"
+  out = out + "</div>\n"
+  if interactive {
+    out = out + PAGE_SCRIPT + "\n"
+  }
+  out = out + "</body>\n</html>\n"
   out
 }
+
+///|
+/// 交互模式注入的脚本：点一段，交给本机服务去问模型。
+///
+/// 用 `#|` 原样字符串写，所以 JS 里的花括号和反斜杠都不用转义。
+const PAGE_SCRIPT : String =
+  #|<script>
+  #|  const askExplain = async (para) => {
+  #|    const previous = para.nextElementSibling;
+  #|    if (previous && previous.classList.contains('card')) previous.remove();
+  #|    const card = document.createElement('div');
+  #|    card.className = 'card';
+  #|    card.textContent = '正在让模型解释这一段……';
+  #|    para.after(card);
+  #|    try {
+  #|      const res = await fetch('explain', {
+  #|        method: 'POST',
+  #|        headers: { 'Content-Type': 'application/json' },
+  #|        body: JSON.stringify({ text: para.innerText })
+  #|      });
+  #|      if (!res.ok) throw new Error('HTTP ' + res.status);
+  #|      const data = await res.json();
+  #|      card.textContent = '';
+  #|      const zh = document.createElement('div');
+  #|      zh.className = 'zh';
+  #|      zh.textContent = data.zh;
+  #|      card.append(zh);
+  #|      if (data.en) {
+  #|        const en = document.createElement('div');
+  #|        en.className = 'en';
+  #|        en.textContent = data.en;
+  #|        card.append(en);
+  #|      }
+  #|      if (data.audit) {
+  #|        const note = document.createElement('div');
+  #|        note.className = 'note';
+  #|        note.textContent = data.audit;
+  #|        card.append(note);
+  #|      }
+  #|    } catch (err) {
+  #|      card.textContent = '连不上本机服务。请用 stepwise serve 启动后再刷新页面；'
+  #|        + '直接双击打开的文件是静态的，点不动。';
+  #|    }
+  #|  };
+  #|  document.querySelectorAll('.text > p').forEach((para) => {
+  #|    para.classList.add('clickable');
+  #|    para.title = '点一下，让模型解释这一段';
+  #|    para.addEventListener('click', () => askExplain(para));
+  #|  });
+  #|</script>
 
 ///|
 /// 从解释表里取出某个词的解释，没有就返回空串。

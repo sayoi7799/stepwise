@@ -88,6 +88,28 @@ test "页面自包含：没有任何外部资源引用" {
 }
 
 ///|
+/// 交互模式才注入脚本：静态页面点不动是设计如此，不是 bug。
+test "交互模式注入点击脚本，静态模式不注入" {
+  let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
+  let learner = @learner.Learner::new(1)
+  let plain = @export.study_page("测试", "我喜欢中文。", lex, learner, [])
+  assert_eq(plain.contains("<script"), false)
+  let live = @export.study_page(
+    "测试",
+    "我喜欢中文。",
+    lex,
+    learner,
+    [],
+    interactive=true,
+  )
+  assert_eq(live.contains("<script"), true)
+  assert_eq(live.contains("askExplain"), true)
+  // 走同源相对路径，不写死主机名和端口
+  assert_eq(live.contains("fetch('explain'"), true)
+  assert_eq(live.contains("127.0.0.1"), false)
+}
+
+///|
 test "没有正文时给出提示而不是空页" {
   let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
   let page = @export.study_page(

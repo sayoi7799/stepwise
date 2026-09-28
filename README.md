@@ -9,7 +9,7 @@ translating a page into English, it measures how much of a text you already
 understand, finds the words that are exactly one level above you, and keeps
 every explanation inside Chinese you can already read.
 
-当前状态：**94 个测试全部离线通过**（不需要网络与 API key，CI 每次提交都跑）、
+当前状态：**101 个测试全部离线通过**（不需要网络与 API key，CI 每次提交都跑）、
 命令行主线在 `samples/` 上都有可复现输出。
 
 最快看到产品长什么样：用浏览器打开
@@ -141,6 +141,29 @@ moon run cmd/main -- html samples/sample.epub --level 2 --out samples/sample.stu
 离线也能看。
 
 仓库里已经放了一份生成好的：[`samples/sample.study.html`](samples/sample.study.html)。
+
+### 点一段，让模型解释它
+
+```bash
+moon run cmd/main -- serve samples/sample.epub --level 2
+# 学习版已就绪：http://127.0.0.1:8787/
+```
+
+打开页面后**点任意一段**，模型会把这段改写成你读得懂的中文，并附一句英文对照：
+
+```
+小明的家不远，走十分钟就到。周末我常去他家。他妈妈很好，每次都给我茶喝，还做很好吃的饭。
+Xiao Ming's home is very close; it only takes ten minutes to walk there.
+可读性审计：覆盖率 91.1%，仍有超纲词（明、钟、每）。
+```
+
+注意最后那行——**改写本身也要过可读性审计**，不达标就带着具体超纲词重试，
+结果如实显示给学习者。
+
+为什么不让页面自己去调模型 API：那样得把 API key 塞进网页（谁拿到这个文件
+谁就拿到你的 key），还要跟浏览器跨域较劲。本机服务让页面同源请求，key 只留在
+环境变量里，一步都不外泄。直接双击打开静态文件时点不动，会提示先起服务——
+这是设计如此，不是 bug。
 
 ```
 # samples/sample.txt

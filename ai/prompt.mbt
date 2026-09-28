@@ -63,3 +63,71 @@ pub fn comprehension_check_prompt(
     "请出一道只需要用一个短句回答的理解题，并给出参考答案。都用中文。"
   { system: TEACHER_SYSTEM, user, temperature_permille: 300, }
 }
+
+///|
+/// 点一句话时用的提示词：改写成学习者读得懂的中文，再附一句英文对照。
+///
+/// 输出格式写死在提示词里，因为客户端要按前缀把两段拆开；
+/// 拆不出来时会退化成「整段当中文」，不会崩。
+///
+/// `avoid` 是上一轮被判超纲的词，重试时点名让模型换掉。
+pub fn sentence_help_prompt(
+  sentence : String,
+  learner_level : Int,
+  avoid : Array[String],
+) -> LlmRequest {
+  let strict_text = if avoid.length() == 0 {
+    ""
+  } else {
+    let listed = avoid.join("、")
+    "\n注意：上一次的改写里，这些词超出了 HSK \{learner_level}，请全部换掉：\{listed}。"
+  }
+  let user = "学习者水平：HSK \{learner_level}\n" +
+    "他正在读的句子：\{sentence}\n\n" +
+    "请做两件事，并且严格按下面的格式输出，不要加别的字：\n" +
+    "简：用 HSK \{learner_level} 及以内的词，把这句话的意思改写成他读得懂的中文；\n" +
+    "英：这句话的英文意思。\n" +
+    "\{strict_text}"
+  { system: TEACHER_SYSTEM, user, temperature_permille: 300, }
+}
+
+///|
+/// 把「简：… 英：…」格式的回答拆成中文与英文两段。
+///
+/// 认不出格式时把整段当作中文、英文留空——宁可少给一行，
+/// 也不要把模型说过的话吃掉。
+pub fn parse_sentence_help(text : String) -> (String, String) {
+  let mut chinese = ""
+  let mut english = ""
+  for line in text.split("\n") {
+    let trimmed = line.trim().to_owned()
+    if trimmed == "" {
+      continue
+    }
+    if trimmed.has_prefix("简：") {
+      // 「简：」是两个字符：简 + 全角冒号
+      chinese = append_line(chinese, trimmed[2:].to_owned())
+    } else if trimmed.has_prefix("英：") {
+      english = append_line(english, trimmed[2:].to_owned())
+    } else if english != "" {
+      english = append_line(english, trimmed)
+    } else {
+      chinese = append_line(chinese, trimmed)
+    }
+  }
+  if chinese == "" && english == "" {
+    (text.trim().to_owned(), "")
+  } else {
+    (chinese, english)
+  }
+}
+
+///|
+/// 往一段文本后面接一行，中间用空格分开。
+fn append_line(current : String, line : String) -> String {
+  if current == "" {
+    line
+  } else {
+    current + " " + line
+  }
+}

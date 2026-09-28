@@ -61,4 +61,8 @@ else {
 }
 
 Write-Output ""
-Write-Output "演示结束。学习版网页已生成，用浏览器打开 samples/sample.study.html 就能读。"
+Write-Output "演示结束。"
+Write-Output ""
+Write-Output "想看点一段就能问模型的交互版，再跑这一条（会一直占用终端，Ctrl+C 结束）："
+Write-Output "  moon run cmd/main -- serve samples/sample.epub --level 2"
+Write-Output "然后在浏览器打开 http://127.0.0.1:8787/ ，点正文里任意一段。"

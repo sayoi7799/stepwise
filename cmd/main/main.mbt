@@ -14,6 +14,7 @@ async fn main {
     "prompt" => run_prompt(args)
     "explain" => run_explain(args)
     "html" => run_html(args)
+    "serve" => run_serve(args)
     _ => print_usage()
   }
 }
@@ -40,6 +41,13 @@ fn print_usage() -> Unit {
   )
   println(
     "      生成浏览器里打开就能用的学习版：生词高亮、悬停看拼音与等级，",
+  )
+  println("  stepwise serve <文件> [--level N] [--port 8787]")
+  println(
+    "      启动本机服务并打开可交互的学习版：点任意一段，模型把它改写成",
+  )
+  println(
+    "      读得懂的中文并附英文对照，改写同样要过可读性审计。",
   )
   println(
     "      附生词表与精读句推荐；加 --explain-top N 会用模型解释前 N 个生词。",

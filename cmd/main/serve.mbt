@@ -129,15 +129,19 @@ async fn serve_explain(
   attempts : Int,
 ) -> Unit {
   let payload = body.read_all().text() catch { _ => "" }
-  let sentence = extract_text_field(payload)
+  let sentence = extract_field(payload, "text")
+  let mode = match extract_field(payload, "mode") {
+    None => @ai.ExplainMode::Simplify
+    Some(key) => @ai.ExplainMode::parse(key)
+  }
   let result = match key {
     None => {
       let json = Json::object({
-        "zh": Json::string(
+        "body": Json::string(
           "本机没有配置 DEEPSEEK_API_KEY，无法解释。",
         ),
         "en": Json::string(""),
-        "audit": Json::string("请在启动服务前设置 DEEPSEEK_API_KEY。"),
+        "note": Json::string("请在启动服务前设置 DEEPSEEK_API_KEY。"),
       })
       json.stringify()
     }
@@ -145,14 +149,14 @@ async fn serve_explain(
       match sentence {
         None =>
           Json::object({
-            "zh": Json::string("这一段读不出来。"),
+            "body": Json::string("这一段读不出来。"),
             "en": Json::string(""),
-            "audit": Json::string(""),
+            "note": Json::string(""),
           }).stringify()
         Some(value) => {
           let client = @ai.OpenAiCompatClient::new(api_key_value)
-          let (chinese, english, note) = sentence_help(
-            client, value, lexicon, learner, attempts,
+          let (content, english, note) = explain_sentence(
+            client, value, mode, lexicon, learner, attempts,
           ) catch {
             error => {
               let message = error.to_string()
@@ -160,9 +164,10 @@ async fn serve_explain(
             }
           }
           Json::object({
-            "zh": Json::string(chinese),
+            "body": Json::string(content),
             "en": Json::string(english),
-            "audit": Json::string(note),
+            "note": Json::string(note),
+            "mode": Json::string(mode.label()),
           }).stringify()
         }
       }
@@ -177,14 +182,14 @@ async fn serve_explain(
 }
 
 ///|
-/// 从请求体里取出 `{"text": "..."}` 的正文。
-fn extract_text_field(payload : String) -> String? {
+/// 从请求体里取出指定字段的字符串值，例如 `{"text": "...", "mode": "words"}`。
+fn extract_field(payload : String, name : String) -> String? {
   let json = @json.parse(payload) catch { _ => return None }
   let fields = match json {
     Object(object) => object
     _ => return None
   }
-  match fields.get("text") {
+  match fields.get(name) {
     Some(value) =>
       match value {
         String(text) => Some(text)
@@ -195,29 +200,34 @@ fn extract_text_field(payload : String) -> String? {
 }
 
 ///|
-/// 带审计的整句解释：返回（更简单的中文，英文，审计说明）。
+/// 带审计的整句解释：返回（正文，英文对照，审计说明）。
 ///
-/// 中文部分不达标就带着具体超纲词重试；英文部分不参与审计——
-/// 它的作用是给一个意思上的锚，不是给学习者读的材料。
-async fn[C : @ai.LlmClient] sentence_help(
+/// 输出给学习者读的模式，不达标就带着具体超纲词重试；
+/// 纯英文翻译不审——它的作用是给个意思上的锚，不是要读的材料。
+async fn[C : @ai.LlmClient] explain_sentence(
   client : C,
   sentence : String,
+  mode : @ai.ExplainMode,
   lexicon : @lexicon.Lexicon,
   learner : @learner.Learner,
   attempts : Int,
 ) -> (String, String, String) raise @ai.LlmError {
   let mut avoid : Array[String] = []
-  let mut chinese = ""
+  let mut content = ""
   let mut english = ""
   let mut coverage = 1000
   let mut round = 0
   while round < attempts {
-    let request = @ai.sentence_help_prompt(sentence, learner.level(), avoid)
+    let request = @ai.explain_request(mode, sentence, learner.level(), avoid)
     let response = client.complete(request)
-    let (zh, en) = @ai.parse_sentence_help(response.text)
-    chinese = zh
+    let (body, en) = @ai.parse_explain(mode, response.text)
+    content = body
     english = en
-    let stats = @ai.audit(chinese, lexicon, learner)
+    if !mode.needs_audit() {
+      coverage = 1000
+      break
+    }
+    let stats = @ai.audit(content, lexicon, learner)
     coverage = stats.coverage_permille()
     if @ai.acceptable_explanation(stats) {
       break
@@ -225,10 +235,12 @@ async fn[C : @ai.LlmClient] sentence_help(
     avoid = stats.unknown_types()
     round = round + 1
   }
-  let note = if coverage >= 950 {
-    "可读性审计：覆盖率 \{coverage / 10}.\{coverage % 10}% —— 这段改写在你当前水平内。"
+  let note = if !mode.needs_audit() {
+    ""
+  } else if coverage >= 950 {
+    "可读性审计：覆盖率 \{coverage / 10}.\{coverage % 10}% —— 在你当前水平内。"
   } else {
     "可读性审计：覆盖率 \{coverage / 10}.\{coverage % 10}%，仍有超纲词（\{avoid.join("、")}）。"
   }
-  (chinese, english, note)
+  (content, english, note)
 }

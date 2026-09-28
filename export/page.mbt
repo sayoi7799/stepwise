@@ -96,6 +96,31 @@ const PAGE_STYLE : String =
   #|  .card .zh { font-weight: 500; }
   #|  .card .en { color: var(--dim); margin-top: 6px; font-size: 0.95rem; }
   #|  .card .note { color: var(--dim); margin-top: 8px; font-size: 0.8rem; }
+  #|  .modes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  #|  .modes button {
+  #|    font: inherit; font-size: 0.82rem; padding: 3px 12px; cursor: pointer;
+  #|    border: 1px solid var(--line); background: #f6f6f3; color: var(--dim);
+  #|    border-radius: 999px;
+  #|  }
+  #|  .modes button:hover { border-color: var(--accent); color: var(--accent); }
+  #|  .modes button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  #|  .card .body-text { white-space: pre-wrap; }
+  #|  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  #|  .fc { perspective: 1200px; height: 150px; }
+  #|  .fc-inner { position: relative; width: 100%; height: 100%; transition: transform .45s;
+  #|              transform-style: preserve-3d; }
+  #|  .fc:hover .fc-inner, .fc.open .fc-inner { transform: rotateY(180deg); }
+  #|  .fc-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 10px;
+  #|             padding: 14px 16px; display: flex; flex-direction: column; justify-content: center;
+  #|             box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+  #|  .fc-front { background: var(--card); border: 1px solid var(--line); align-items: center; }
+  #|  .fc-word { font-family: Georgia, "Songti SC", serif; font-size: 2rem; }
+  #|  .fc-hint { color: var(--dim); font-size: 0.75rem; margin-top: 8px; }
+  #|  .fc-back { background: #fdf6e8; border: 1px solid #e8d9b8; transform: rotateY(180deg); }
+  #|  .fc-meta { color: var(--accent); font-size: 0.78rem; }
+  #|  .fc-context { font-family: Georgia, "Songti SC", serif; font-size: 0.95rem; margin: 6px 0; }
+  #|  .fc-context mark { background: none; color: var(--accent); font-weight: 600; }
+  #|  .fc-explain { color: var(--dim); font-size: 0.82rem; }
   #|  footer { color: var(--dim); font-size: 0.82rem; margin-top: 48px; border-top: 1px solid var(--line); padding-top: 14px; }
   #|</style>
 
@@ -211,6 +236,23 @@ pub fn study_page(
     }
     out = out + "</ul>\n"
   }
+  // 生词卡片：正面只有词，背面是拼音、等级、原句和解释。
+  // 背面放原句而不是中英对照，是产品主张——在语境里记词。
+  out = out + "<h2>生词卡片</h2>\n"
+  if vocab.length() == 0 {
+    out = out +
+      "<p class=\"hint\">这一篇没有生词，不需要卡片。</p>\n"
+  } else {
+    out = out +
+      "<p class=\"hint\">把鼠标移到卡片上翻面。背面是它出现的那句话——记的是「这句话怎么用」，不是一个孤立的词。</p>\n"
+    out = out + "<div class=\"cards\">\n"
+    for entry in vocab {
+      out = out +
+        render_flashcard(entry, lookup_explanation(explanations, entry.word)) +
+        "\n"
+    }
+    out = out + "</div>\n"
+  }
   out = out +
     "<footer>由「拾级 Stepwise」生成 · 词表 HSK 3.0 · 覆盖率门槛 95%</footer>\n"
   out = out + "</div>\n"
@@ -227,42 +269,70 @@ pub fn study_page(
 /// 用 `#|` 原样字符串写，所以 JS 里的花括号和反斜杠都不用转义。
 const PAGE_SCRIPT : String =
   #|<script>
-  #|  const askExplain = async (para) => {
+  #|  const MODES = [
+  #|    ['simplify', '改成简单中文'],
+  #|    ['words', '逐词解释'],
+  #|    ['grammar', '语法拆解'],
+  #|    ['check', '理解检查'],
+  #|    ['translate', '英文翻译'],
+  #|  ];
+  #|  const askExplain = (para) => {
   #|    const previous = para.nextElementSibling;
   #|    if (previous && previous.classList.contains('card')) previous.remove();
   #|    const card = document.createElement('div');
   #|    card.className = 'card';
-  #|    card.textContent = '正在让模型解释这一段……';
+  #|    const bar = document.createElement('div');
+  #|    bar.className = 'modes';
+  #|    const body = document.createElement('div');
+  #|    body.className = 'body-text';
+  #|    card.append(bar, body);
   #|    para.after(card);
-  #|    try {
-  #|      const res = await fetch('explain', {
-  #|        method: 'POST',
-  #|        headers: { 'Content-Type': 'application/json' },
-  #|        body: JSON.stringify({ text: para.innerText })
+  #|    const run = async (mode) => {
+  #|      for (const button of bar.children) {
+  #|        button.classList.toggle('on', button.dataset.mode === mode);
+  #|      }
+  #|      body.textContent = '正在让模型处理这一段……';
+  #|      try {
+  #|        const res = await fetch('explain', {
+  #|          method: 'POST',
+  #|          headers: { 'Content-Type': 'application/json' },
+  #|          body: JSON.stringify({ text: para.innerText, mode: mode })
+  #|        });
+  #|        if (!res.ok) throw new Error('HTTP ' + res.status);
+  #|        const data = await res.json();
+  #|        body.textContent = '';
+  #|        const main = document.createElement('div');
+  #|        main.className = 'zh';
+  #|        main.textContent = data.body;
+  #|        body.append(main);
+  #|        if (data.en) {
+  #|          const en = document.createElement('div');
+  #|          en.className = 'en';
+  #|          en.textContent = data.en;
+  #|          body.append(en);
+  #|        }
+  #|        if (data.note) {
+  #|          const note = document.createElement('div');
+  #|          note.className = 'note';
+  #|          note.textContent = data.note;
+  #|          body.append(note);
+  #|        }
+  #|      } catch (err) {
+  #|        body.textContent = '连不上本机服务。请用 stepwise serve 启动后再刷新页面；'
+  #|          + '直接双击打开的文件是静态的，点不动。';
+  #|      }
+  #|    };
+  #|    for (const [key, label] of MODES) {
+  #|      const button = document.createElement('button');
+  #|      button.textContent = label;
+  #|      button.dataset.mode = key;
+  #|      button.addEventListener('click', (event) => {
+  #|        event.stopPropagation();
+  #|        run(key);
   #|      });
-  #|      if (!res.ok) throw new Error('HTTP ' + res.status);
-  #|      const data = await res.json();
-  #|      card.textContent = '';
-  #|      const zh = document.createElement('div');
-  #|      zh.className = 'zh';
-  #|      zh.textContent = data.zh;
-  #|      card.append(zh);
-  #|      if (data.en) {
-  #|        const en = document.createElement('div');
-  #|        en.className = 'en';
-  #|        en.textContent = data.en;
-  #|        card.append(en);
-  #|      }
-  #|      if (data.audit) {
-  #|        const note = document.createElement('div');
-  #|        note.className = 'note';
-  #|        note.textContent = data.audit;
-  #|        card.append(note);
-  #|      }
-  #|    } catch (err) {
-  #|      card.textContent = '连不上本机服务。请用 stepwise serve 启动后再刷新页面；'
-  #|        + '直接双击打开的文件是静态的，点不动。';
+  #|      bar.append(button);
   #|    }
+  #|    run('simplify');
   #|  };
   #|  document.querySelectorAll('.text > p').forEach((para) => {
   #|    para.classList.add('clickable');
@@ -283,4 +353,48 @@ fn lookup_explanation(
     }
   }
   ""
+}
+
+///|
+/// 一张生词卡片：正面是词，背面是拼音、等级、它出现的那句原话和解释。
+fn render_flashcard(
+  entry : @learner.VocabEntry,
+  explanation : String,
+) -> String {
+  let level = level_label(entry.level)
+  let mut out = "<div class=\"fc\"><div class=\"fc-inner\">"
+  out = out +
+    "<div class=\"fc-face fc-front\"><span class=\"fc-word\">" +
+    escape_html(entry.word) +
+    "</span><span class=\"fc-hint\">移上来翻面</span></div>"
+  out = out + "<div class=\"fc-face fc-back\">"
+  out = out +
+    "<span class=\"fc-meta\">" +
+    escape_html(entry.pinyin) +
+    " · " +
+    level +
+    "</span>"
+  out = out +
+    "<span class=\"fc-context\">" +
+    highlight_word(entry.first_sentence, entry.word) +
+    "</span>"
+  if explanation != "" {
+    out = out +
+      "<span class=\"fc-explain\">" +
+      escape_html(explanation) +
+      "</span>"
+  } else {
+    out = out +
+      "<span class=\"fc-explain\">（这张卡还没有模型解释）</span>"
+  }
+  out = out + "</div></div></div>"
+  out
+}
+
+///|
+/// 把原句里的目标词标出来，其余部分照常转义。
+fn highlight_word(sentence : String, word : String) -> String {
+  let escaped = escape_html(sentence)
+  let target = escape_html(word)
+  escaped.replace_all(old=target, new="<mark>" + target + "</mark>")
 }

@@ -110,6 +110,65 @@ test "交互模式注入点击脚本，静态模式不注入" {
 }
 
 ///|
+/// 生词卡片是这个项目的产品主张：背面必须是原句，不是中英对照。
+test "生词卡片：正面是词，背面是等级、原句和解释" {
+  let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
+  let learner = @learner.Learner::new(1)
+  let page = @export.study_page(
+    "测试",
+    "我喜欢研究生命。",
+    lex,
+    learner,
+    [("研究", "研究就是仔细地看一件事。")],
+  )
+  assert_eq(page.contains("<h2>生词卡片</h2>"), true)
+  assert_eq(page.contains("class=\"fc-word\">研究<"), true)
+  // 背面把词高亮在原句里，而不是给一个孤立的词
+  assert_eq(page.contains("<mark>研究</mark>"), true)
+  assert_eq(page.contains("yánjiū · HSK 3"), true)
+  assert_eq(page.contains("研究就是仔细地看一件事。"), true)
+}
+
+///|
+test "卡片没有解释时如实说明，不装作有" {
+  let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
+  let page = @export.study_page(
+    "测试",
+    "我喜欢研究。",
+    lex,
+    @learner.Learner::new(1),
+    [],
+  )
+  assert_eq(page.contains("（这张卡还没有模型解释）"), true)
+}
+
+///|
+test "没有生词时不生成卡片区" {
+  let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
+  let page = @export.study_page(
+    "测试",
+    "我喜欢中文。",
+    lex,
+    @learner.Learner::new(9),
+    [],
+  )
+  assert_eq(page.contains("这一篇没有生词，不需要卡片。"), true)
+}
+
+///|
+test "卡片里的词也走转义，不会破坏页面" {
+  let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
+  let page = @export.study_page(
+    "测试",
+    "我喜欢研究<b>。",
+    lex,
+    @learner.Learner::new(1),
+    [],
+  )
+  assert_eq(page.contains("<b>"), false)
+}
+
+///|
 test "没有正文时给出提示而不是空页" {
   let lex = @lexicon.Lexicon::from_tsv(PAGE_LEXICON)
   let page = @export.study_page(

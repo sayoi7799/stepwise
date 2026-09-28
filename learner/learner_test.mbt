@@ -140,3 +140,27 @@ test "生词表在重复出现时只保留一条并累计次数" {
   assert_eq(vocab.length(), 1)
   assert_eq(vocab[0].count, 3)
 }
+
+///|
+/// 生词卡片的背面必须是原句，不是孤立的词——这是产品设计的一部分。
+test "生词表转成复习卡：背面放原句，默认第 0 天到期" {
+  let lex = @lexicon.Lexicon::from_tsv(LEARNER_LEXICON)
+  let learner = @learner.Learner::new(1)
+  let vocab = @learner.collect_vocabulary("我喜欢研究猫。", lex, learner)
+  let cards = @learner.to_cards(vocab)
+  assert_eq(cards.length(), 3)
+  assert_eq(cards[0].word, "喜欢")
+  assert_eq(cards[0].pinyin, "xǐhuan")
+  assert_eq(cards[0].level, 2)
+  assert_eq(cards[0].context, "我喜欢研究猫。")
+  assert_eq(cards[0].due_day, 0)
+  assert_eq(cards[0].ease_text(), "2.50")
+}
+
+///|
+test "没有生词时转出空卡片列表" {
+  let lex = @lexicon.Lexicon::from_tsv(LEARNER_LEXICON)
+  let learner = @learner.Learner::new(9)
+  let vocab = @learner.collect_vocabulary("我喜欢中文。", lex, learner)
+  assert_eq(@learner.to_cards(vocab).length(), 0)
+}

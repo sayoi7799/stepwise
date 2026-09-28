@@ -1,11 +1,16 @@
 # 拾级 Stepwise
 
+[![CI](https://github.com/sayoi7799/stepwise/actions/workflows/ci.yml/badge.svg)](https://github.com/sayoi7799/stepwise/actions/workflows/ci.yml)
+
 **给中文学习者的分级阅读流水线：用中文理解中文，而不是逐句翻译。**
 
 Stepwise is a graded-reading pipeline for learners of Chinese. Instead of
 translating a page into English, it measures how much of a text you already
 understand, finds the words that are exactly one level above you, and keeps
 every explanation inside Chinese you can already read.
+
+当前状态：**86 个测试全部离线通过**（不需要网络与 API key，CI 每次提交都跑）、
+行覆盖率 **799/1129（70.8%）**、命令行主线在 `samples/` 上都有可复现输出。
 
 ## 为什么不是「又一个翻译器」
 
@@ -166,9 +171,44 @@ moon run cmd/main -- prompt <词> <原句> [--level N] 打印会发给模型的�
 
    ```bash
    moon check          # 编译检查
-   moon test           # 52 个测试，全部离线
-   moon run cmd/main -- analyze samples/sample.txt --level 2
+   moon test           # 86 个测试，全部离线
+   moon run cmd/main -- analyze samples/sample.epub --level 2
    ```
+
+## 两分钟验证 MVP
+
+三条命令，都不需要网络和密钥。下面同时给出**预期输出**，
+跑出来的东西对不上，就说明环境有问题。
+
+```bash
+$ moon test
+Total tests: 86, passed: 86, failed: 0.
+
+$ moon run cmd/main -- analyze samples/sample.epub --level 2
+# 我的中国朋友
+
+- 章节数：2
+- 已知词覆盖率：89.6%
+- 生词：7 个（共出现 11 次）
+
+## 逐章体检
+
+| 章节 | 词数 | 覆盖率 | 判定 |
+| --- | --- | --- | --- |
+| 第一章 我有一个中国朋友 | 57 | 91.2% | 有点挑战，需要一点支撑 |
+| 第二章 茶是一种语言 | 49 | 87.7% | 偏难，建议先降级改写再读 |
+
+$ moon run cmd/main -- prompt 意思 "这句话很有意思。" --pinyin yìsi --word-level 3
+--- system ---
+你是一位面向外国学习者的中文老师。请用中文解释，不要翻译成英文。……
+--- user ---
+学习者水平：HSK 2
+要解释的词：意思（拼音 yìsi，等级 HSK 3）
+……
+```
+
+第三条命令完全离线：它只把要发给模型的提示词打印出来，不联网、不需要 key。
+想验证真模型那条链路，配上 `DEEPSEEK_API_KEY` 后把 `prompt` 换成 `explain`。
 
 ## 设计要点
 

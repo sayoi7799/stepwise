@@ -4,3 +4,7 @@ import {
   "stepwise/learner",
   "stepwise/segment",
 }
+
+import {
+  "moonbitlang/x/fs",
+} for "test"

@@ -40,6 +40,40 @@
   ul.sentences { padding-left: 20px; }
   ul.sentences li { font-family: Georgia, "Songti SC", serif; margin: 8px 0; }
   .hint { color: var(--dim); font-size: 0.85rem; }
+  p.clickable { cursor: pointer; border-radius: 6px; }
+  p.clickable:hover { background: #fffdf3; box-shadow: 0 0 0 6px #fffdf3; }
+  .card { margin: 6px 0 18px; padding: 14px 18px; background: #fff;
+          border-left: 3px solid var(--accent); border-radius: 6px;
+          font-family: -apple-system, "Segoe UI", sans-serif; font-size: 1rem;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .card .zh { font-weight: 500; }
+  .card .en { color: var(--dim); margin-top: 6px; font-size: 0.95rem; }
+  .card .note { color: var(--dim); margin-top: 8px; font-size: 0.8rem; }
+  .modes { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .modes button {
+    font: inherit; font-size: 0.82rem; padding: 3px 12px; cursor: pointer;
+    border: 1px solid var(--line); background: #f6f6f3; color: var(--dim);
+    border-radius: 999px;
+  }
+  .modes button:hover { border-color: var(--accent); color: var(--accent); }
+  .modes button.on { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .card .body-text { white-space: pre-wrap; }
+  .cards { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .fc { perspective: 1200px; height: 150px; }
+  .fc-inner { position: relative; width: 100%; height: 100%; transition: transform .45s;
+              transform-style: preserve-3d; }
+  .fc:hover .fc-inner, .fc.open .fc-inner { transform: rotateY(180deg); }
+  .fc-face { position: absolute; inset: 0; backface-visibility: hidden; border-radius: 10px;
+             padding: 14px 16px; display: flex; flex-direction: column; justify-content: center;
+             box-shadow: 0 1px 3px rgba(0,0,0,0.08); overflow: hidden; }
+  .fc-front { background: var(--card); border: 1px solid var(--line); align-items: center; }
+  .fc-word { font-family: Georgia, "Songti SC", serif; font-size: 2rem; }
+  .fc-hint { color: var(--dim); font-size: 0.75rem; margin-top: 8px; }
+  .fc-back { background: #fdf6e8; border: 1px solid #e8d9b8; transform: rotateY(180deg); }
+  .fc-meta { color: var(--accent); font-size: 0.78rem; }
+  .fc-context { font-family: Georgia, "Songti SC", serif; font-size: 0.95rem; margin: 6px 0; }
+  .fc-context mark { background: none; color: var(--accent); font-weight: 600; }
+  .fc-explain { color: var(--dim); font-size: 0.82rem; }
   footer { color: var(--dim); font-size: 0.82rem; margin-top: 48px; border-top: 1px solid var(--line); padding-top: 14px; }
 </style>
 </head>
@@ -53,25 +87,32 @@
 <p class="legend">高亮的是超出你当前水平的词，鼠标停上去看拼音和等级。</p>
 </header>
 <h2>正文</h2>
+<section class="text">
 <p><span class="w">第</span><span class="w">一</span><span class="w new" data-tip="HSK 6">章</span></p>
 <p><span class="w">我</span><span class="w">有</span><span class="w">一</span><span class="w">个</span><span class="w">中国</span><span class="w">朋友</span>，<span class="w">他</span><span class="w">叫</span><span class="w">小</span><span class="w new" data-tip="未收录">明</span>。<span class="w">我们</span><span class="w">是</span><span class="w">同学</span>，<span class="w">一起</span><span class="w">在</span><span class="w">学校</span><span class="w">学习</span><span class="w">中文</span>。</p>
 <p><span class="w">小</span><span class="w new" data-tip="未收录">明</span><span class="w">的</span><span class="w">家</span><span class="w">很</span><span class="w">近</span>，<span class="w">走路</span><span class="w">只要</span><span class="w">十分</span><span class="w new" data-tip="HSK 3">钟</span>。<span class="w">周末</span><span class="w">的</span><span class="w">时候</span>，<span class="w">我</span><span class="w">常常</span><span class="w">去</span><span class="w">他</span><span class="w">家</span>。<span class="w">他</span><span class="w">的</span><span class="w">妈妈</span><span class="w">很</span><span class="w">热情</span>，<span class="w new" data-tip="HSK 3">每</span><span class="w">次</span><span class="w">都</span><span class="w">给</span><span class="w">我</span><span class="w">喝</span><span class="w">茶</span>，<span class="w">还</span><span class="w">做</span><span class="w">很</span><span class="w">好吃</span><span class="w">的</span><span class="w">米饭</span>。</p>
 <p><span class="w">第二</span><span class="w new" data-tip="HSK 6">章</span></p>
 <p><span class="w">有</span><span class="w">一</span><span class="w">次</span>，<span class="w">我</span><span class="w">问</span><span class="w">他</span>：“<span class="w">为什么</span><span class="w">中国</span><span class="w">人</span><span class="w">这么</span><span class="w">喜欢</span><span class="w">喝</span><span class="w">茶</span>？”<span class="w">他</span><span class="w">说</span>：“<span class="w">因为</span><span class="w">茶</span><span class="w">不</span><span class="w new" data-tip="HSK 3">只是</span><span class="w">水</span>，<span class="w">还是</span><span class="w">一</span><span class="w new" data-tip="HSK 3">种</span><span class="w">语言</span>。”</p>
 <p><span class="w">我</span><span class="w">觉得</span><span class="w">这</span><span class="w">句</span><span class="w">话</span><span class="w">很</span><span class="w">有意思</span>。<span class="w">学习</span><span class="w">中文</span><span class="w">不</span><span class="w new" data-tip="HSK 3">只是</span><span class="w">记</span><span class="w">生词</span>，<span class="w">也</span><span class="w">是</span><span class="w">在</span><span class="w">学习</span><span class="w">一</span><span class="w new" data-tip="HSK 3">种</span><span class="w">看</span><span class="w new" data-tip="HSK 3">世界</span><span class="w">的</span><span class="w">方法</span>。</p>
+</section>
 <h2>生词表</h2>
 <table>
 <tr><th>词</th><th>拼音</th><th>等级</th><th>出现</th><th>解释</th></tr>
-<tr><td>钟</td><td>zhōng</td><td>HSK 3</td><td>1</td><td>1. 在这句话里，“钟”是时间，十分钟就是走十分钟那么久。
-2. 我每天睡八钟头。</td></tr>
-<tr><td>每</td><td>měi</td><td>HSK 3</td><td>1</td><td>1. “每”在这里是“每一次”的意思，就是“不管哪一次”。
-2. 例子：我每天早上都喝牛奶。</td></tr>
-<tr><td>只是</td><td>zhǐshì</td><td>HSK 3</td><td>2</td><td>1. 在这句话里，“只是”的意思是：茶不是只有水，茶还有别的意思。
-2. 例子：他不只是我的老师，还是我的朋友。</td></tr>
-<tr><td>种</td><td>zhǒng</td><td>HSK 3</td><td>2</td><td></td></tr>
-<tr><td>世界</td><td>shìjiè</td><td>HSK 3</td><td>1</td><td></td></tr>
-<tr><td>章</td><td>zhāng</td><td>HSK 6</td><td>2</td><td></td></tr>
-<tr><td>明</td><td></td><td>未收录</td><td>2</td><td></td></tr>
+<tr><td>钟</td><td>zhōng</td><td>HSK 3</td><td>1</td><td>1. 在这句话里，“钟”是时间，一分钟就是一分钟，十分钟就是走十分钟。
+2. 例子：我每天七点钟起床。</td></tr>
+<tr><td>每</td><td>měi</td><td>HSK 3</td><td>1</td><td>1. “每”在这里是“每一次”的意思，就是“这次这样，下次也这样”。
+2. 例子：我每天都喝水。</td></tr>
+<tr><td>只是</td><td>zhǐshì</td><td>HSK 3</td><td>2</td><td>1. “只是”在这里的意思是“就是、只有”。  
+2. 例子：我不只是他的老师，还是他的朋友。</td></tr>
+<tr><td>种</td><td>zhǒng</td><td>HSK 3</td><td>2</td><td>1. 这里的“种”意思是“一个东西的样子”或者“一个东西的类”。
+2. 例子：苹果是一种水果。</td></tr>
+<tr><td>世界</td><td>shìjiè</td><td>HSK 3</td><td>1</td><td>1. 在这句话里，“世界”就是“我们生活的这个地方”，有中国，有外国，有很多人。
+
+2. 例子：我想去世界上的很多地方看看。</td></tr>
+<tr><td>章</td><td>zhāng</td><td>HSK 6</td><td>2</td><td>1. 在这句话里，“章”就是书里或故事里的一大段。
+2. 这本书的第一章很好看。</td></tr>
+<tr><td>明</td><td></td><td>未收录</td><td>2</td><td>1. “明”在这里是人名里的一个字，没有特别的意思。
+2. 我认识一个朋友，他叫明。</td></tr>
 </table>
 <h2>值得精读的句子</h2>
 <ul class="sentences">
@@ -81,6 +122,25 @@
 <li>他的妈妈很热情，每次都给我喝茶，还做很好吃的米饭。<br><span class="hint">生词：每</span></li>
 <li>第二章<br><span class="hint">生词：章</span></li>
 </ul>
+<h2>生词卡片</h2>
+<p class="hint">把鼠标移到卡片上翻面。背面是它出现的那句话——记的是「这句话怎么用」，不是一个孤立的词。</p>
+<div class="cards">
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">钟</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta">zhōng · HSK 3</span><span class="fc-context">小明的家很近，走路只要十分<mark>钟</mark>。</span><span class="fc-explain">1. 在这句话里，“钟”是时间，一分钟就是一分钟，十分钟就是走十分钟。
+2. 例子：我每天七点钟起床。</span></div></div></div>
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">每</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta">měi · HSK 3</span><span class="fc-context">他的妈妈很热情，<mark>每</mark>次都给我喝茶，还做很好吃的米饭。</span><span class="fc-explain">1. “每”在这里是“每一次”的意思，就是“这次这样，下次也这样”。
+2. 例子：我每天都喝水。</span></div></div></div>
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">只是</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta">zhǐshì · HSK 3</span><span class="fc-context">他说：“因为茶不<mark>只是</mark>水，还是一种语言。”</span><span class="fc-explain">1. “只是”在这里的意思是“就是、只有”。  
+2. 例子：我不只是他的老师，还是他的朋友。</span></div></div></div>
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">种</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta">zhǒng · HSK 3</span><span class="fc-context">他说：“因为茶不只是水，还是一<mark>种</mark>语言。”</span><span class="fc-explain">1. 这里的“种”意思是“一个东西的样子”或者“一个东西的类”。
+2. 例子：苹果是一种水果。</span></div></div></div>
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">世界</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta">shìjiè · HSK 3</span><span class="fc-context">学习中文不只是记生词，也是在学习一种看<mark>世界</mark>的方法。</span><span class="fc-explain">1. 在这句话里，“世界”就是“我们生活的这个地方”，有中国，有外国，有很多人。
+
+2. 例子：我想去世界上的很多地方看看。</span></div></div></div>
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">章</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta">zhāng · HSK 6</span><span class="fc-context">第一<mark>章</mark></span><span class="fc-explain">1. 在这句话里，“章”就是书里或故事里的一大段。
+2. 这本书的第一章很好看。</span></div></div></div>
+<div class="fc"><div class="fc-inner"><div class="fc-face fc-front"><span class="fc-word">明</span><span class="fc-hint">移上来翻面</span></div><div class="fc-face fc-back"><span class="fc-meta"> · 未收录</span><span class="fc-context">我有一个中国朋友，他叫小<mark>明</mark>。</span><span class="fc-explain">1. “明”在这里是人名里的一个字，没有特别的意思。
+2. 我认识一个朋友，他叫明。</span></div></div></div>
+</div>
 <footer>由「拾级 Stepwise」生成 · 词表 HSK 3.0 · 覆盖率门槛 95%</footer>
 </div>
 </body>

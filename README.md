@@ -16,6 +16,10 @@ every explanation inside Chinese you can already read.
 [`samples/sample.study.html`](samples/sample.study.html)——那是一本 EPUB
 经过这个流水线处理后的成品，生词高亮、悬停看拼音与等级、附生词表和精读句。
 
+**给评委：** 三档查看路径（30 秒 / 3 分钟 / 交互演示）见
+[`docs/演示说明.md`](docs/演示说明.md)。最省事的一步是下载上面那个 HTML
+双击打开——不用装任何东西就能看到生词高亮、悬停提示和可以翻面的生词卡片。
+
 ## 为什么不是「又一个翻译器」
 
 把一段中文翻成英文，学习者读完只记住了英文，中文还是没进去。真正让语言
